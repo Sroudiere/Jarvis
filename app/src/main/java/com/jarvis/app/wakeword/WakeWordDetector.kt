@@ -102,11 +102,19 @@ class WakeWordDetector(
         Log.d(TAG, "Wake word detection started")
 
         val pcmBuffer = ShortArray(frameLength)
+        var frameCount = 0
 
         try {
             while (isActive && running) {
                 val read = recorder.read(pcmBuffer, 0, frameLength)
                 if (read == frameLength) {
+                    // Log audio level every ~2 seconds (2s * 16000Hz / 512 samples ≈ 62 frames)
+                    if (frameCount % 62 == 0) {
+                        val maxAmp = pcmBuffer.maxOf { kotlin.math.abs(it.toInt()) }
+                        Log.d(TAG, "Audio level (max amp): $maxAmp")
+                    }
+                    frameCount++
+
                     val keywordIndex = engine.process(pcmBuffer)
                     if (keywordIndex >= 0) {
                         Log.d(TAG, "Wake word detected!")
