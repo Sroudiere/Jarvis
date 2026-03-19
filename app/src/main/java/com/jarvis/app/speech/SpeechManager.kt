@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
-import android.os.HandlerThread
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -14,8 +14,7 @@ import java.util.Locale
 /**
  * Wraps Android's SpeechRecognizer to capture a single utterance after the wake word.
  *
- * Android's SpeechRecognizer must be created and used on a thread with a Looper.
- * We use a dedicated HandlerThread so the service doesn't need to post to the main thread.
+ * Android's SpeechRecognizer must be created and used on the main thread.
  */
 class SpeechManager(private val context: Context) {
 
@@ -23,8 +22,7 @@ class SpeechManager(private val context: Context) {
         private const val TAG = "SpeechManager"
     }
 
-    private val handlerThread = HandlerThread("SpeechRecognizerThread").also { it.start() }
-    private val handler = Handler(handlerThread.looper)
+    private val handler = Handler(Looper.getMainLooper())
 
     private var recognizer: SpeechRecognizer? = null
     private var resultCallback: ((String) -> Unit)? = null
@@ -112,6 +110,5 @@ class SpeechManager(private val context: Context) {
             recognizer?.destroy()
             recognizer = null
         }
-        handlerThread.quitSafely()
     }
 }
