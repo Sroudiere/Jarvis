@@ -96,7 +96,14 @@ class JarvisService : Service() {
 
         initTts()
         speechManager.init()
-        wakeWordDetector.init()
+        try {
+            wakeWordDetector.init()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialise wake word detector — check PICOVOICE_ACCESS_KEY in local.properties", e)
+            broadcast(STATE_ERROR, "Invalid or missing Picovoice access key")
+            stopSelf()
+            return
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -104,7 +111,7 @@ class JarvisService : Service() {
             ACTION_START -> startListening()
             ACTION_STOP  -> stopSelf()
         }
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {
