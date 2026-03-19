@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Simple "J" letter for Jarvis -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M60,28 L60,68 Q60,80 48,80 Q36,80 36,68 L44,68 Q44,72 48,72 Q52,72 52,68 L52,28 Z" />
+</vector>
