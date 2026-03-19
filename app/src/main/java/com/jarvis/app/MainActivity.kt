@@ -19,6 +19,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.Scope
+import android.content.SharedPreferences
 import com.jarvis.app.databinding.ActivityMainBinding
 import com.jarvis.app.service.JarvisService
 
@@ -30,6 +31,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var googleSignInClient: GoogleSignInClient
+    private lateinit var prefs: SharedPreferences
 
     private var isServiceRunning = false
 
@@ -78,9 +80,11 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        prefs = getSharedPreferences(JarvisService.PREFS_NAME, Context.MODE_PRIVATE)
         setupGoogleSignIn()
         setupButtons()
         updateSignInButton()
+        setupPauseOnLockSwitch()
     }
 
     override fun onResume() {
@@ -131,6 +135,14 @@ class MainActivity : AppCompatActivity() {
             } else {
                 googleSignInLauncher.launch(googleSignInClient.signInIntent)
             }
+        }
+    }
+
+    private fun setupPauseOnLockSwitch() {
+        binding.switchPauseOnLock.isChecked =
+            prefs.getBoolean(JarvisService.PREF_PAUSE_ON_LOCK, false)
+        binding.switchPauseOnLock.setOnCheckedChangeListener { _, checked ->
+            prefs.edit().putBoolean(JarvisService.PREF_PAUSE_ON_LOCK, checked).apply()
         }
     }
 

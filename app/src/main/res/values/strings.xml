@@ -16,4 +16,6 @@
     <string name="status_awake">Say your command…</string>
     <string name="status_processing">Processing…</string>
     <string name="permission_rationale">Jarvis needs microphone access to detect the wake word and transcribe your speech.</string>
+    <string name="switch_pause_on_lock">Pause when screen is locked</string>
+    <string name="notification_text_paused">Paused — screen locked</string>
 </resources>

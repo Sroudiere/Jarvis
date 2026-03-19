@@ -78,6 +78,19 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginTop="8dp" />
 
+    <!-- Pause on screen lock toggle -->
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/switchPauseOnLock"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/switch_pause_on_lock"
+        android:textColor="@color/white"
+        android:textSize="14sp"
+        app:layout_constraintBottom_toTopOf="@id/btnGoogleSignIn"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginBottom="16dp" />
+
     <!-- Google Sign-In button -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnGoogleSignIn"

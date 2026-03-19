@@ -5,8 +5,11 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.os.IBinder
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
@@ -63,6 +66,9 @@ class JarvisService : Service() {
 
         // Wake-word debounce: ignore detections within this window
         private const val WAKE_DEBOUNCE_MS = 3_000L
+
+        const val PREFS_NAME       = "jarvis_prefs"
+        const val PREF_PAUSE_ON_LOCK = "pause_on_screen_lock"
     }
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -72,9 +78,34 @@ class JarvisService : Service() {
     private lateinit var speechManager: SpeechManager
     private lateinit var openAIClient: OpenAIClient
     private lateinit var tts: TextToSpeech
+    private lateinit var prefs: SharedPreferences
 
     @Volatile private var lastWakeTime = 0L
-    @Volatile private var isAwake = false   // true while listening for speech / processing
+    @Volatile private var isAwake = false        // true while listening for speech / processing
+    @Volatile private var isPausedByScreen = false
+
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    if (prefs.getBoolean(PREF_PAUSE_ON_LOCK, false) && !isAwake) {
+                        Log.d(TAG, "Screen off — pausing wake word detection")
+                        isPausedByScreen = true
+                        wakeWordJob?.cancel()
+                        wakeWordDetector.stop()
+                        updateNotification("paused")
+                    }
+                }
+                Intent.ACTION_SCREEN_ON -> {
+                    if (isPausedByScreen) {
+                        Log.d(TAG, "Screen on — resuming wake word detection")
+                        isPausedByScreen = false
+                        resumeWakeWord()
+                    }
+                }
+            }
+        }
+    }
 
     // ─── Service lifecycle ────────────────────────────────────────────────────
 
@@ -82,7 +113,14 @@ class JarvisService : Service() {
         super.onCreate()
         Log.d(TAG, "onCreate")
 
+        prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         createNotificationChannel()
+
+        val screenFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+        }
+        registerReceiver(screenReceiver, screenFilter)
 
         // Build dependency graph
         val authManager     = GoogleAuthManager(applicationContext)
@@ -117,6 +155,7 @@ class JarvisService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "onDestroy")
+        unregisterReceiver(screenReceiver)
         wakeWordJob?.cancel()
         wakeWordDetector.release()
         speechManager.release()
@@ -218,8 +257,10 @@ class JarvisService : Service() {
         isAwake = false
         updateNotification(STATE_LISTENING)
         broadcast(STATE_LISTENING, "")
+        resumeWakeWord()
+    }
 
-        // Restart Porcupine audio capture
+    private fun resumeWakeWord() {
         wakeWordJob?.cancel()
         wakeWordJob = serviceScope.launch {
             try {
@@ -265,6 +306,7 @@ class JarvisService : Service() {
         val (title, text) = when (state) {
             STATE_AWAKE      -> Pair(getString(R.string.app_name), getString(R.string.notification_text_awake))
             STATE_PROCESSING -> Pair(getString(R.string.app_name), getString(R.string.notification_text_processing))
+            "paused"         -> Pair(getString(R.string.app_name), getString(R.string.notification_text_paused))
             else             -> Pair(getString(R.string.notification_title_listening), getString(R.string.notification_text_listening))
         }
         return NotificationCompat.Builder(this, CHANNEL_ID)
