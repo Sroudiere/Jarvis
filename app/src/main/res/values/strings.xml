@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Jarvis</string>
+    <string name="notification_channel_name">Jarvis Assistant</string>
+    <string name="notification_channel_desc">Jarvis wake word detection and voice assistant</string>
+    <string name="notification_title_listening">Jarvis is listening</string>
+    <string name="notification_text_listening">Say "Jarvis" to activate</string>
+    <string name="notification_text_awake">Listening to your command…</string>
+    <string name="notification_text_processing">Processing your request…</string>
+    <string name="btn_start">Start Jarvis</string>
+    <string name="btn_stop">Stop Jarvis</string>
+    <string name="sign_in_google">Sign in with Google</string>
+    <string name="sign_out">Sign out</string>
+    <string name="status_idle">Tap "Start Jarvis" to begin</string>
+    <string name="status_listening">Listening for wake word…</string>
+    <string name="status_awake">Say your command…</string>
+    <string name="status_processing">Processing…</string>
+    <string name="permission_rationale">Jarvis needs microphone access to detect the wake word and transcribe your speech.</string>
+</resources>
