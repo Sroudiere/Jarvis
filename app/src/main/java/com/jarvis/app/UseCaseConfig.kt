@@ -61,7 +61,27 @@ object UseCaseConfig {
             """.trimIndent()
         )
 
-        // Example of a third use-case — uncomment and fill in to activate:
+        UseCase(
+            label = "Liste de courses",
+            sheetId = "REPLACE_WITH_YOUR_GROCERY_SHEET_ID",
+            keywords = listOf(
+                "courses", "course", "liste", "acheter", "achète", "achat",
+                "supermarché", "marché", "épicerie", "rajoute", "ajoute",
+                "manque", "faut", "besoin"
+            ),
+            sheetTab = "Sheet1",
+            customInstructions = """
+                Structure : colonne A uniquement, chaque ligne est un article (ex. "3 Oignons", "Farine", "Tomates").
+                Règles :
+                - L'utilisateur peut dicter un ou plusieurs articles en une seule commande (ex. "ajoute du lait et des œufs").
+                - Ajoute chaque article sur une nouvelle ligne séparée via append_row.
+                - Formule les articles de façon naturelle : inclus la quantité si mentionnée, sinon juste le nom.
+                - Ne demande jamais de confirmation avant d'ajouter.
+                - Confirme en listant les articles ajoutés (ex. "J'ai ajouté : lait, œufs.").
+            """.trimIndent()
+        )
+
+        // Example of an additional use-case — uncomment and fill in to activate:
         // UseCase(
         //     label = "Journal alimentaire",
         //     sheetId = "REPLACE_WITH_YOUR_FOOD_SHEET_ID",
