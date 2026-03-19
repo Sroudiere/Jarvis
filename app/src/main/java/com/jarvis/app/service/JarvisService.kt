@@ -25,6 +25,7 @@ import com.jarvis.app.speech.SpeechManager
 import com.jarvis.app.tools.GoogleSheetsTools
 import com.jarvis.app.tools.ToolRegistry
 import com.jarvis.app.wakeword.WakeWordDetector
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -177,6 +178,8 @@ class JarvisService : Service() {
                 wakeWordDetector.start {
                     onWakeWordDetected()
                 }
+            } catch (e: CancellationException) {
+                throw e  // expected when job is cancelled intentionally
             } catch (e: Exception) {
                 Log.e(TAG, "Wake word loop error", e)
                 broadcast(STATE_ERROR, e.message ?: "Wake word error")
@@ -265,6 +268,8 @@ class JarvisService : Service() {
         wakeWordJob = serviceScope.launch {
             try {
                 wakeWordDetector.start { onWakeWordDetected() }
+            } catch (e: CancellationException) {
+                throw e  // expected when job is cancelled intentionally
             } catch (e: Exception) {
                 Log.e(TAG, "Wake word loop restart error", e)
                 stopSelf()
