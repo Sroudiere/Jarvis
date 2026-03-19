@@ -48,6 +48,7 @@ class WakeWordDetector(
         porcupine = Porcupine.Builder()
             .setAccessKey(accessKey)
             .setKeyword(Porcupine.BuiltInKeyword.JARVIS)
+            .setSensitivity(0.7f)
             .build(context)
         Log.d(TAG, "Porcupine initialised (frame length: ${porcupine!!.frameLength})")
     }
@@ -82,8 +83,21 @@ class WakeWordDetector(
             AudioFormat.ENCODING_PCM_16BIT,
             bufferSize
         )
+
+        if (recorder.state != AudioRecord.STATE_INITIALIZED) {
+            recorder.release()
+            throw IllegalStateException("AudioRecord failed to initialize (state=${recorder.state}). Check RECORD_AUDIO permission and mic availability.")
+        }
+
         audioRecord = recorder
         recorder.startRecording()
+
+        if (recorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+            recorder.release()
+            audioRecord = null
+            throw IllegalStateException("AudioRecord failed to start recording.")
+        }
+
         running = true
         Log.d(TAG, "Wake word detection started")
 
@@ -98,6 +112,8 @@ class WakeWordDetector(
                         Log.d(TAG, "Wake word detected!")
                         onDetected()
                     }
+                } else if (read < 0) {
+                    Log.e(TAG, "AudioRecord.read() returned error code: $read")
                 }
             }
         } catch (e: PorcupineActivationLimitException) {
