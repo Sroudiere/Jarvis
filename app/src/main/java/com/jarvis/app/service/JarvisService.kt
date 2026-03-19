@@ -165,7 +165,7 @@ class JarvisService : Service() {
         wakeWordDetector.stop()
 
         // Play a short "ready" beep via TTS (or you could play a tone)
-        tts.speak("Yes?", TextToSpeech.QUEUE_FLUSH, null, "ready_cue")
+        tts.speak("Oui ?", TextToSpeech.QUEUE_FLUSH, null, "ready_cue")
 
         // Give TTS a moment to finish, then start STT
         serviceScope.launch {
@@ -190,9 +190,9 @@ class JarvisService : Service() {
             onError = { errorCode ->
                 Log.w(TAG, "STT error: $errorCode")
                 val msg = when (errorCode) {
-                    SpeechRecognizer.ERROR_NO_MATCH      -> "I didn't catch that."
-                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "I didn't hear anything."
-                    else -> "Speech recognition error."
+                    SpeechRecognizer.ERROR_NO_MATCH      -> "Je n'ai pas compris."
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Je n'ai rien entendu."
+                    else -> "Erreur de reconnaissance vocale."
                 }
                 tts.speak(msg, TextToSpeech.QUEUE_FLUSH, null, null)
                 finishAndResumePorcupine()
@@ -208,7 +208,7 @@ class JarvisService : Service() {
             tts.speak(response, TextToSpeech.QUEUE_FLUSH, null, "llm_response")
         } catch (e: Exception) {
             Log.e(TAG, "LLM error", e)
-            tts.speak("Sorry, I had trouble processing that.", TextToSpeech.QUEUE_FLUSH, null, null)
+            tts.speak("Désolé, j'ai eu un problème pour traiter ça.", TextToSpeech.QUEUE_FLUSH, null, null)
         } finally {
             finishAndResumePorcupine()
         }
@@ -236,7 +236,7 @@ class JarvisService : Service() {
     private fun initTts() {
         tts = TextToSpeech(applicationContext) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                tts.language = Locale.getDefault()
+                tts.language = Locale.FRENCH
                 Log.d(TAG, "TTS initialised")
             } else {
                 Log.e(TAG, "TTS init failed: $status")
