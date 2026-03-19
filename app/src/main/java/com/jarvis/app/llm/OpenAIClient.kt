@@ -23,10 +23,15 @@ class OpenAIClient(private val toolRegistry: ToolRegistry) {
 
     companion object {
         private const val TAG = "OpenAIClient"
-        private const val MAX_TOOL_ROUNDS = 8      // prevent infinite loops
+        private const val MAX_TOOL_ROUNDS = 8           // prevent infinite loops
+        private const val HISTORY_TIMEOUT_MS = 20_000L  // 20 seconds
     }
 
     private val gson = Gson()
+
+    /** Messages from the last conversation (excludes system message). */
+    private var previousMessages: List<ChatMessage> = emptyList()
+    private var lastConversationEndTime: Long = 0L
 
     private val api: OpenAIApiService by lazy {
         val client = OkHttpClient.Builder()
@@ -54,13 +59,24 @@ class OpenAIClient(private val toolRegistry: ToolRegistry) {
 
     /**
      * Process a voice command through the LLM with tool calling.
+     * If the previous conversation ended less than [HISTORY_TIMEOUT_MS] ago, its
+     * messages are prepended so the LLM can answer follow-up questions in context.
      * Returns the final assistant response text.
      */
     suspend fun processCommand(userText: String): String {
-        val messages = mutableListOf(
-            ChatMessage(role = "system", content = Config.buildSystemPrompt()),
-            ChatMessage(role = "user", content = userText)
-        )
+        // Reuse history only if it is still fresh
+        val history = previousMessages
+            .takeIf { it.isNotEmpty() && System.currentTimeMillis() - lastConversationEndTime < HISTORY_TIMEOUT_MS }
+            ?: emptyList()
+
+        if (history.isNotEmpty()) {
+            Log.d(TAG, "Resuming conversation with ${history.size} previous messages")
+        }
+
+        val messages = mutableListOf<ChatMessage>()
+        messages.add(ChatMessage(role = "system", content = Config.buildSystemPrompt()))
+        messages.addAll(history)
+        messages.add(ChatMessage(role = "user", content = userText))
 
         repeat(MAX_TOOL_ROUNDS) { round ->
             Log.d(TAG, "LLM round $round, messages: ${messages.size}")
@@ -76,17 +92,20 @@ class OpenAIClient(private val toolRegistry: ToolRegistry) {
             if (!response.isSuccessful) {
                 val err = response.errorBody()?.string()
                 Log.e(TAG, "OpenAI error ${response.code()}: $err")
-                return "Sorry, I encountered an error calling the AI service."
+                return "Désolé, une erreur est survenue lors de l'appel au service IA."
             }
 
             val choice = response.body()?.choices?.firstOrNull()
-                ?: return "Sorry, I got an empty response."
+                ?: return "Désolé, j'ai reçu une réponse vide."
 
             val assistantMessage = choice.message
 
             when (choice.finishReason) {
                 "stop" -> {
-                    return assistantMessage.content ?: "Done."
+                    // Save history (without system message) for potential follow-up
+                    previousMessages = messages.drop(1) + assistantMessage
+                    lastConversationEndTime = System.currentTimeMillis()
+                    return assistantMessage.content ?: "Terminé."
                 }
 
                 "tool_calls" -> {
@@ -116,11 +135,15 @@ class OpenAIClient(private val toolRegistry: ToolRegistry) {
                 }
 
                 else -> {
-                    return assistantMessage.content ?: "Done."
+                    previousMessages = messages.drop(1) + assistantMessage
+                    lastConversationEndTime = System.currentTimeMillis()
+                    return assistantMessage.content ?: "Terminé."
                 }
             }
         }
 
-        return "I ran too many steps trying to fulfill your request."
+        // Clear history on unresolved state
+        previousMessages = emptyList()
+        return "J'ai effectué trop d'étapes pour répondre à votre demande."
     }
 }

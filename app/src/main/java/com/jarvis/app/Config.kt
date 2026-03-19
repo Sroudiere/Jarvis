@@ -28,8 +28,14 @@ object Config {
         val useCaseBlock = if (UseCaseConfig.all.isEmpty()) {
             "Aucun cas d'usage configuré — utilise list_spreadsheets pour identifier la bonne feuille."
         } else {
-            UseCaseConfig.all.joinToString("\n") { uc ->
-                "- ${uc.label} → spreadsheetId=\"${uc.sheetId}\", onglet=\"${uc.sheetTab}\" (mots-clés : ${uc.keywords.joinToString(", ")})"
+            UseCaseConfig.all.joinToString("\n\n") { uc ->
+                val header = "- ${uc.label} → spreadsheetId=\"${uc.sheetId}\", onglet=\"${uc.sheetTab}\" (mots-clés : ${uc.keywords.joinToString(", ")})"
+                if (uc.customInstructions.isNotBlank()) {
+                    val indented = uc.customInstructions.lines().joinToString("\n") { "    $it" }
+                    "$header\n$indented"
+                } else {
+                    header
+                }
             }
         }
 

@@ -23,45 +23,45 @@ class GoogleSheetsTools(private val client: GoogleSheetsClient) {
 
         tool(
             name = "list_spreadsheets",
-            description = "List all Google Sheets spreadsheets the user has access to, with their IDs, names, and descriptions. Use descriptions to identify the right sheet.",
+            description = "Lister tous les classeurs Google Sheets accessibles par l'utilisateur, avec leurs identifiants, noms et descriptions. Utilise les descriptions pour identifier le bon classeur.",
             parameters = params("""{}""")
         ),
 
         tool(
             name = "read_sheet",
-            description = "Read data from a Google Sheets spreadsheet. Returns rows as arrays of strings. Use this to understand the existing structure (headers, last row, format) before writing.",
+            description = "Lire les données d'un classeur Google Sheets. Retourne les lignes sous forme de tableaux de chaînes. Utilise cela pour comprendre la structure existante (en-têtes, dernière ligne, format) avant d'écrire.",
             parameters = params("""{
-                "spreadsheetId": {"type": "string", "description": "The spreadsheet ID from list_spreadsheets"},
-                "range": {"type": "string", "description": "A1 notation range, e.g. 'Sheet1' (entire sheet) or 'Sheet1!A1:D20'. Default: 'Sheet1'"}
+                "spreadsheetId": {"type": "string", "description": "L'identifiant du classeur"},
+                "range": {"type": "string", "description": "Plage en notation A1, ex. 'Sheet1' (feuille entière) ou 'Sheet1!A1:D20'. Par défaut : 'Sheet1'"}
             }""", required = listOf("spreadsheetId"))
         ),
 
         tool(
             name = "append_row",
-            description = "Append a new row at the end of a sheet. Use this to add a new entry (e.g. a daily weight measurement, a new travel log entry).",
+            description = "Ajouter une nouvelle ligne à la fin d'une feuille. Utilise cela pour enregistrer une nouvelle entrée (ex. : une mesure de poids quotidienne, une nouvelle entrée de journal de trajet).",
             parameters = params("""{
-                "spreadsheetId": {"type": "string", "description": "The spreadsheet ID"},
-                "sheetName": {"type": "string", "description": "Tab name within the spreadsheet, e.g. 'Sheet1'"},
-                "values": {"type": "array", "items": {"type": "string"}, "description": "The cell values for the new row, in column order"}
+                "spreadsheetId": {"type": "string", "description": "L'identifiant du classeur"},
+                "sheetName": {"type": "string", "description": "Nom de l'onglet dans le classeur, ex. 'Sheet1'"},
+                "values": {"type": "array", "items": {"type": "string"}, "description": "Les valeurs des cellules pour la nouvelle ligne, dans l'ordre des colonnes"}
             }""", required = listOf("spreadsheetId", "values"))
         ),
 
         tool(
             name = "update_cell_range",
-            description = "Update one or more cells in an existing sheet. Use this to fill in a missing value in an existing row (e.g. the arrival time when the departure time was already recorded).",
+            description = "Mettre à jour une ou plusieurs cellules dans une feuille existante. Utilise cela pour remplir une valeur manquante dans une ligne existante (ex. : l'heure d'arrivée quand l'heure de départ a déjà été enregistrée).",
             parameters = params("""{
-                "spreadsheetId": {"type": "string", "description": "The spreadsheet ID"},
-                "range": {"type": "string", "description": "A1 notation for the cell or range to update, e.g. 'Sheet1!C5'"},
-                "values": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}, "description": "2-D array of values (rows × columns)"}
+                "spreadsheetId": {"type": "string", "description": "L'identifiant du classeur"},
+                "range": {"type": "string", "description": "Cellule ou plage en notation A1 à mettre à jour, ex. 'Sheet1!C5'"},
+                "values": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}, "description": "Tableau 2D de valeurs (lignes × colonnes)"}
             }""", required = listOf("spreadsheetId", "range", "values"))
         ),
 
         tool(
             name = "update_spreadsheet_description",
-            description = "Update the description metadata of a Google Sheets file. Use this to keep the description current so future voice commands can identify the spreadsheet.",
+            description = "Mettre à jour la description metadata d'un fichier Google Sheets. Utilise cela pour garder la description à jour afin que les futures commandes vocales puissent identifier le classeur.",
             parameters = params("""{
-                "spreadsheetId": {"type": "string", "description": "The spreadsheet ID (file ID in Drive)"},
-                "description": {"type": "string", "description": "The new description for the spreadsheet"}
+                "spreadsheetId": {"type": "string", "description": "L'identifiant du classeur (ID du fichier dans Drive)"},
+                "description": {"type": "string", "description": "La nouvelle description du classeur"}
             }""", required = listOf("spreadsheetId", "description"))
         )
     )
