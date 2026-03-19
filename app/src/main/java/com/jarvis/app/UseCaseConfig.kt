@@ -39,14 +39,14 @@ object UseCaseConfig {
 
         UseCase(
             label = "Suivi du poids",
-            sheetId = "REPLACE_WITH_YOUR_WEIGHT_SHEET_ID",
+            sheetId = "1M-0ru3dcHEkfl7YAAGe3hLI6DrWcLB1rZ7SdsFpLYcc",
             keywords = listOf("kg", "kilo", "kilos", "poids", "pesé", "peser", "balance", "masse"),
             sheetTab = "Sheet1"
         ),
 
         UseCase(
             label = "Temps de trajet",
-            sheetId = "REPLACE_WITH_YOUR_DRIVING_SHEET_ID",
+            sheetId = "1QhxqcRA_gzxaz1GyvAwW0bfuHLP87QffGgQT32FJTS8",
             keywords = listOf(
                 "trajet", "route", "conduite", "conduire", "voiture",
                 "départ", "arrivée", "arrivé", "parti", "minutes", "durée"
