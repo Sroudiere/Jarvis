@@ -53,13 +53,25 @@ class SpeechManager(private val context: Context) {
                         errorCallback = null
                     }
 
-                    // ── Unused callbacks ──────────────────────────────────────
-                    override fun onReadyForSpeech(params: Bundle?) {}
-                    override fun onBeginningOfSpeech() {}
-                    override fun onRmsChanged(rmsdB: Float) {}
+                    override fun onReadyForSpeech(params: Bundle?) {
+                        Log.d(TAG, "Ready for speech")
+                    }
+                    override fun onBeginningOfSpeech() {
+                        Log.d(TAG, "Speech detected — recording…")
+                    }
+                    override fun onRmsChanged(rmsdB: Float) {
+                        Log.d(TAG, "STT mic level (RMS dB): $rmsdB")
+                    }
                     override fun onBufferReceived(buffer: ByteArray?) {}
-                    override fun onEndOfSpeech() {}
-                    override fun onPartialResults(partialResults: Bundle?) {}
+                    override fun onEndOfSpeech() {
+                        Log.d(TAG, "End of speech — processing…")
+                    }
+                    override fun onPartialResults(partialResults: Bundle?) {
+                        val partial = partialResults
+                            ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            ?.firstOrNull()
+                        Log.d(TAG, "Partial result: $partial")
+                    }
                     override fun onEvent(eventType: Int, params: Bundle?) {}
                 })
             }
