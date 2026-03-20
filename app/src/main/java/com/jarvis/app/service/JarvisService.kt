@@ -84,6 +84,7 @@ class JarvisService : Service() {
     @Volatile private var lastWakeTime = 0L
     @Volatile private var isAwake = false        // true while listening for speech / processing
     @Volatile private var isPausedByScreen = false
+    @Volatile private var isInitialized = false
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -139,6 +140,7 @@ class JarvisService : Service() {
         speechManager.init()
         try {
             wakeWordDetector.init()
+            isInitialized = true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialise wake word detector — check PICOVOICE_ACCESS_KEY in local.properties", e)
             broadcast(STATE_ERROR, "Invalid or missing Picovoice access key")
@@ -149,7 +151,7 @@ class JarvisService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START -> startListening()
+            ACTION_START -> if (isInitialized) startListening() else stopSelf()
             ACTION_STOP  -> stopSelf()
         }
         return START_NOT_STICKY
