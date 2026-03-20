@@ -116,6 +116,8 @@ class JarvisService : Service() {
 
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         createNotificationChannel()
+        // Must call startForeground() within 5 seconds of startForegroundService()
+        startForeground(NOTIFICATION_ID, buildNotification(STATE_IDLE))
 
         val screenFilter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF)
