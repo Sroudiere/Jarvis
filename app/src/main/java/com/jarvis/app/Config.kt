@@ -5,7 +5,6 @@ import java.time.format.DateTimeFormatter
 
 object Config {
 
-    val PICOVOICE_ACCESS_KEY: String get() = BuildConfig.PICOVOICE_ACCESS_KEY
     val OPENAI_API_KEY: String get() = BuildConfig.OPENAI_API_KEY
 
     const val OPENAI_MODEL = "gpt-4o"

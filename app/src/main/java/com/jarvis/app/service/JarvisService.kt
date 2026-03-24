@@ -84,6 +84,7 @@ class JarvisService : Service() {
     @Volatile private var lastWakeTime = 0L
     @Volatile private var isAwake = false        // true while listening for speech / processing
     @Volatile private var isPausedByScreen = false
+    @Volatile private var isInitialized = false
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -131,7 +132,7 @@ class JarvisService : Service() {
         val sheetsTools     = GoogleSheetsTools(sheetsClient)
         val toolRegistry    = ToolRegistry(sheetsTools)
 
-        wakeWordDetector = WakeWordDetector(applicationContext, Config.PICOVOICE_ACCESS_KEY)
+        wakeWordDetector = WakeWordDetector(applicationContext)
         speechManager    = SpeechManager(applicationContext)
         openAIClient     = OpenAIClient(toolRegistry)
 
@@ -139,9 +140,10 @@ class JarvisService : Service() {
         speechManager.init()
         try {
             wakeWordDetector.init()
+            isInitialized = true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialise wake word detector — check PICOVOICE_ACCESS_KEY in local.properties", e)
-            broadcast(STATE_ERROR, "Invalid or missing Picovoice access key")
+            Log.e(TAG, "Failed to initialise wake word detector — check that hey_jarvis_v0.1.onnx is in app/src/main/assets/", e)
+            broadcast(STATE_ERROR, "Wake word engine failed to initialise")
             stopSelf()
             return
         }
@@ -149,7 +151,7 @@ class JarvisService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START -> startListening()
+            ACTION_START -> if (isInitialized) startListening() else stopSelf()
             ACTION_STOP  -> stopSelf()
         }
         return START_NOT_STICKY
@@ -205,7 +207,7 @@ class JarvisService : Service() {
         updateNotification(STATE_AWAKE)
         broadcast(STATE_AWAKE, "")
 
-        // Stop Porcupine audio capture so the mic is free for SpeechRecognizer
+        // Stop wake word audio capture so the mic is free for SpeechRecognizer
         wakeWordDetector.stop()
 
         // Play a short "ready" beep via TTS (or you could play a tone)
@@ -228,7 +230,7 @@ class JarvisService : Service() {
                     serviceScope.launch { processWithLLM(text) }
                 } else {
                     Log.d(TAG, "Empty transcript, going back to listening")
-                    finishAndResumePorcupine()
+                    finishAndResumeWakeWord()
                 }
             },
             onError = { errorCode ->
@@ -239,7 +241,7 @@ class JarvisService : Service() {
                     else -> "Erreur de reconnaissance vocale."
                 }
                 tts.speak(msg, TextToSpeech.QUEUE_FLUSH, null, null)
-                finishAndResumePorcupine()
+                finishAndResumeWakeWord()
             }
         )
     }
@@ -254,11 +256,11 @@ class JarvisService : Service() {
             Log.e(TAG, "LLM error", e)
             tts.speak("Désolé, j'ai eu un problème pour traiter ça.", TextToSpeech.QUEUE_FLUSH, null, null)
         } finally {
-            finishAndResumePorcupine()
+            finishAndResumeWakeWord()
         }
     }
 
-    private fun finishAndResumePorcupine() {
+    private fun finishAndResumeWakeWord() {
         isAwake = false
         updateNotification(STATE_LISTENING)
         broadcast(STATE_LISTENING, "")

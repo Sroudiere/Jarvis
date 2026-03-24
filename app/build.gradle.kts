@@ -23,8 +23,6 @@ android {
         versionName = "1.0"
 
         // Inject secrets as BuildConfig fields (add these to local.properties)
-        buildConfigField("String", "PICOVOICE_ACCESS_KEY",
-            "\"${localProperties["PICOVOICE_ACCESS_KEY"] ?: ""}\"")
         buildConfigField("String", "OPENAI_API_KEY",
             "\"${localProperties["OPENAI_API_KEY"] ?: ""}\"")
     }
@@ -64,6 +62,6 @@ dependencies {
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp.logging)
     implementation(libs.gson)
-    implementation(libs.porcupine)
+    implementation(libs.openwakeword)
     implementation(libs.play.services.auth)
 }
