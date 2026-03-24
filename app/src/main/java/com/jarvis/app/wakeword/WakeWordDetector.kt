@@ -111,6 +111,9 @@ class WakeWordDetector(private val context: Context) {
         Log.d(TAG, "Wake word detection started")
         val pcm = ShortArray(CHUNK_SAMPLES)
         var consecutiveErrors = 0
+        var chunkCount = 0
+        // Log listening status every ~2 s (2s * 16000Hz / 1280 samples ≈ 25 chunks)
+        val LOG_INTERVAL = 25
         try {
             while (isActive && listening) {
                 val read = recorder.read(pcm, 0, CHUNK_SAMPLES)
@@ -124,6 +127,12 @@ class WakeWordDetector(private val context: Context) {
                 }
                 consecutiveErrors = 0
                 if (read != CHUNK_SAMPLES) continue
+
+                if (chunkCount % LOG_INTERVAL == 0) {
+                    val maxAmp = pcm.maxOf { kotlin.math.abs(it.toInt()) }
+                    Log.d(TAG, "Listening… audio level (max amp): $maxAmp")
+                }
+                chunkCount++
 
                 // Stage 1: mel spectrogram
                 val newFrames = runMelModel(pcm) ?: continue
