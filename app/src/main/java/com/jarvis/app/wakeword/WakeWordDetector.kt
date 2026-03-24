@@ -193,19 +193,23 @@ class WakeWordDetector(private val context: Context) {
         val inputName = session.inputInfo.keys.first()
         val tensor = OnnxTensor.createTensor(
             ortEnv, FloatBuffer.wrap(audio), longArrayOf(1L, CHUNK_SAMPLES.toLong()))
-        return session.run(mapOf(inputName to tensor)).use { result ->
-            tensor.close()
-            val outName = session.outputInfo.keys.first()
-            val outTensor = result.get(outName).get() as OnnxTensor
-            val flat = FloatArray(outTensor.floatBuffer.remaining())
-            outTensor.floatBuffer.get(flat)
-            // Apply normalisation: (x / 10) + 2
-            for (i in flat.indices) flat[i] = (flat[i] / 10f) + 2f
-            // Split into individual frames of size MEL_BINS
-            val frameCount = flat.size / MEL_BINS
-            (0 until frameCount).map { fi ->
-                FloatArray(MEL_BINS) { bi -> flat[fi * MEL_BINS + bi] }
+        return try {
+            session.run(mapOf(inputName to tensor)).use { result ->
+                tensor.close()
+                val outName = session.outputInfo.keys.first()
+                val outTensor = result.get(outName).get() as OnnxTensor
+                val flat = FloatArray(outTensor.floatBuffer.remaining())
+                outTensor.floatBuffer.get(flat)
+                // Apply normalisation: (x / 10) + 2
+                for (i in flat.indices) flat[i] = (flat[i] / 10f) + 2f
+                // Split into individual frames of size MEL_BINS
+                val frameCount = flat.size / MEL_BINS
+                (0 until frameCount).map { fi ->
+                    FloatArray(MEL_BINS) { bi -> flat[fi * MEL_BINS + bi] }
+                }
             }
+        } catch (e: IllegalStateException) {
+            null  // session was closed mid-inference during shutdown
         }
     }
 
@@ -225,14 +229,18 @@ class WakeWordDetector(private val context: Context) {
         val tensor = OnnxTensor.createTensor(
             ortEnv, FloatBuffer.wrap(flat),
             longArrayOf(1L, MEL_WINDOW.toLong(), MEL_BINS.toLong(), 1L))
-        return session.run(mapOf(inputName to tensor)).use { result ->
-            tensor.close()
-            val outName = session.outputInfo.keys.first()
-            val outTensor = result.get(outName).get() as OnnxTensor
-            val outFlat = FloatArray(outTensor.floatBuffer.remaining())
-            outTensor.floatBuffer.get(outFlat)
-            // Output is [1, 1, 1, EMBED_DIM] — the last EMBED_DIM values are the embedding
-            outFlat.takeLast(EMBED_DIM).toFloatArray()
+        return try {
+            session.run(mapOf(inputName to tensor)).use { result ->
+                tensor.close()
+                val outName = session.outputInfo.keys.first()
+                val outTensor = result.get(outName).get() as OnnxTensor
+                val outFlat = FloatArray(outTensor.floatBuffer.remaining())
+                outTensor.floatBuffer.get(outFlat)
+                // Output is [1, 1, 1, EMBED_DIM] — the last EMBED_DIM values are the embedding
+                outFlat.takeLast(EMBED_DIM).toFloatArray()
+            }
+        } catch (e: IllegalStateException) {
+            null  // session was closed mid-inference during shutdown
         }
     }
 
@@ -252,13 +260,17 @@ class WakeWordDetector(private val context: Context) {
         val tensor = OnnxTensor.createTensor(
             ortEnv, FloatBuffer.wrap(flat),
             longArrayOf(1L, EMBED_WINDOW.toLong(), EMBED_DIM.toLong()))
-        return session.run(mapOf(inputName to tensor)).use { result ->
-            tensor.close()
-            val outName = session.outputInfo.keys.first()
-            val outTensor = result.get(outName).get() as OnnxTensor
-            val outFlat = FloatArray(outTensor.floatBuffer.remaining())
-            outTensor.floatBuffer.get(outFlat)
-            outFlat.firstOrNull()
+        return try {
+            session.run(mapOf(inputName to tensor)).use { result ->
+                tensor.close()
+                val outName = session.outputInfo.keys.first()
+                val outTensor = result.get(outName).get() as OnnxTensor
+                val outFlat = FloatArray(outTensor.floatBuffer.remaining())
+                outTensor.floatBuffer.get(outFlat)
+                outFlat.firstOrNull()
+            }
+        } catch (e: IllegalStateException) {
+            null  // session was closed mid-inference during shutdown
         }
     }
 }
