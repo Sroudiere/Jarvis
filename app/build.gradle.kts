@@ -27,6 +27,10 @@ android {
             "\"${localProperties["OPENAI_API_KEY"] ?: ""}\"")
     }
 
+    aaptOptions {
+        noCompress("onnx")
+    }
+
     buildFeatures {
         buildConfig = true
         viewBinding = true

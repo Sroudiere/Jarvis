@@ -59,10 +59,17 @@ class WakeWordDetector(private val context: Context) {
     // ─── Public API ───────────────────────────────────────────────────────────
 
     fun init() {
-        fun loadAsset(name: String): ByteArray = context.assets.open(name).readBytes()
+        fun loadAsset(name: String): ByteArray {
+            val bytes = context.assets.open(name).readBytes()
+            Log.d(TAG, "Loaded asset $name: ${bytes.size} bytes")
+            return bytes
+        }
         melSession   = ortEnv.createSession(loadAsset("melspectrogram.onnx"))
+        Log.d(TAG, "melspectrogram session OK")
         embedSession = ortEnv.createSession(loadAsset("embedding_model.onnx"))
+        Log.d(TAG, "embedding_model session OK")
         wakeSession  = ortEnv.createSession(loadAsset("hey_jarvis_v0.1.onnx"))
+        Log.d(TAG, "hey_jarvis session OK")
         Log.d(TAG, "openWakeWord ONNX engine ready")
     }
 
