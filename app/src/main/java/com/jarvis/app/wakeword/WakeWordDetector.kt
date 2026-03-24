@@ -88,12 +88,30 @@ class WakeWordDetector(private val context: Context) {
         embedBuf.clear()
         listening = true
         recorder.startRecording()
-        Log.d(TAG, "Wake word detection started")
 
+        // If recording didn't actually start (e.g. no mic on emulator, AppOps denied),
+        // release without calling stop() — avoids "Operation not started" in AppOps.
+        if (recorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+            listening = false
+            recorder.release()
+            throw IllegalStateException("AudioRecord failed to start recording (state=${recorder.recordingState}). Check RECORD_AUDIO permission and mic availability.")
+        }
+
+        Log.d(TAG, "Wake word detection started")
         val pcm = ShortArray(CHUNK_SAMPLES)
+        var consecutiveErrors = 0
         try {
             while (isActive && listening) {
                 val read = recorder.read(pcm, 0, CHUNK_SAMPLES)
+                if (read < 0) {
+                    Log.e(TAG, "AudioRecord.read() error: $read")
+                    if (++consecutiveErrors >= 10) {
+                        Log.e(TAG, "Too many consecutive read errors, stopping wake word detection")
+                        break
+                    }
+                    continue
+                }
+                consecutiveErrors = 0
                 if (read != CHUNK_SAMPLES) continue
 
                 // Stage 1: mel spectrogram
@@ -121,7 +139,9 @@ class WakeWordDetector(private val context: Context) {
             }
         } finally {
             listening = false
-            recorder.stop()
+            if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                recorder.stop()
+            }
             recorder.release()
             Log.d(TAG, "Wake word detection stopped")
         }
