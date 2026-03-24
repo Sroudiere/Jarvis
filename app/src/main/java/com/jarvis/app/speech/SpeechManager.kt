@@ -108,21 +108,26 @@ class SpeechManager(private val context: Context) {
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
             }
+            Log.d(TAG, ">>> SpeechRecognizer.startListening()")
             sr.startListening(intent)
-            Log.d(TAG, "Listening for speech…")
+            Log.d(TAG, "<<< SpeechRecognizer.startListening()")
         }
     }
 
     fun stopListening() {
         handler.post {
+            Log.d(TAG, ">>> SpeechRecognizer.stopListening()")
             recognizer?.stopListening()
+            Log.d(TAG, "<<< SpeechRecognizer.stopListening()")
         }
     }
 
     fun release() {
         handler.post {
+            Log.d(TAG, ">>> SpeechRecognizer.destroy()")
             recognizer?.destroy()
             recognizer = null
+            Log.d(TAG, "<<< SpeechRecognizer.destroy()")
         }
     }
 }

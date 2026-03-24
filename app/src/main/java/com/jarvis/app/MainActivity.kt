@@ -81,9 +81,10 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         prefs = getSharedPreferences(JarvisService.PREFS_NAME, Context.MODE_PRIVATE)
-        setupGoogleSignIn()
+        // TODO: re-enable once OAuth client is configured for this device
+        // setupGoogleSignIn()
         setupButtons()
-        updateSignInButton()
+        // updateSignInButton()
         setupPauseOnLockSwitch()
     }
 
@@ -124,18 +125,18 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        binding.btnGoogleSignIn.setOnClickListener {
-            val account = GoogleSignIn.getLastSignedInAccount(this)
-            if (account != null) {
-                // Already signed in → sign out
-                googleSignInClient.signOut().addOnCompleteListener {
-                    updateSignInButton()
-                    Toast.makeText(this, "Signed out", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                googleSignInLauncher.launch(googleSignInClient.signInIntent)
-            }
-        }
+        // TODO: re-enable once OAuth client is configured for this device
+        // binding.btnGoogleSignIn.setOnClickListener {
+        //     val account = GoogleSignIn.getLastSignedInAccount(this)
+        //     if (account != null) {
+        //         googleSignInClient.signOut().addOnCompleteListener {
+        //             updateSignInButton()
+        //             Toast.makeText(this, "Signed out", Toast.LENGTH_SHORT).show()
+        //         }
+        //     } else {
+        //         googleSignInLauncher.launch(googleSignInClient.signInIntent)
+        //     }
+        // }
     }
 
     private fun setupPauseOnLockSwitch() {

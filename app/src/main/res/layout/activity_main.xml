@@ -91,7 +91,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginBottom="16dp" />
 
-    <!-- Google Sign-In button -->
+    <!-- Google Sign-In button (disabled until OAuth is configured) -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnGoogleSignIn"
         android:layout_width="wrap_content"
@@ -102,7 +102,8 @@
         app:layout_constraintBottom_toTopOf="@id/btnToggle"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginBottom="16dp" />
+        android:layout_marginBottom="16dp"
+        android:visibility="gone" />
 
     <!-- Start/Stop toggle button -->
     <com.google.android.material.button.MaterialButton
