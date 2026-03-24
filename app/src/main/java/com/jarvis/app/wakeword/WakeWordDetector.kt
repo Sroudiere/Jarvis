@@ -27,6 +27,7 @@ class WakeWordDetector(private val context: Context) {
     }
 
     private var engine: WakeWordEngine? = null
+    @Volatile private var listening = false
 
     /**
      * Initialise the openWakeWord engine. Call once before start().
@@ -46,6 +47,7 @@ class WakeWordDetector(private val context: Context) {
      */
     suspend fun start(onDetected: () -> Unit) = withContext(Dispatchers.IO) {
         val e = engine ?: throw IllegalStateException("Call init() before start()")
+        listening = true
         Log.d(TAG, "Wake word detection started")
         try {
             e.startListening().collect { detection ->
@@ -53,13 +55,17 @@ class WakeWordDetector(private val context: Context) {
                 onDetected()
             }
         } finally {
+            listening = false
             Log.d(TAG, "Wake word detection stopped")
         }
     }
 
-    /** Signals the detection loop to stop. */
+    /** Signals the detection loop to stop. No-op if not currently listening. */
     fun stop() {
-        engine?.stopListening()
+        if (listening) {
+            listening = false
+            engine?.stopListening()
+        }
     }
 
     /** Releases resources. Call when done with the detector. */
