@@ -90,7 +90,7 @@ class JarvisService : Service() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 Intent.ACTION_SCREEN_OFF -> {
-                    if (prefs.getBoolean(PREF_PAUSE_ON_LOCK, false) && !isAwake) {
+                    if (!isAwake) {
                         Log.d(TAG, "Screen off — pausing wake word detection")
                         isPausedByScreen = true
                         wakeWordJob?.cancel()
@@ -201,23 +201,19 @@ class JarvisService : Service() {
             return
         }
         lastWakeTime = now
-        isAwake = true
 
-        Log.d(TAG, "Wake word confirmed — starting STT")
-        updateNotification(STATE_AWAKE)
-        broadcast(STATE_AWAKE, "")
+        Log.d(TAG, "Wake word detected!")
 
-        // Stop wake word audio capture so the mic is free for SpeechRecognizer
-        wakeWordDetector.stop()
-
-        // Play a short "ready" beep via TTS (or you could play a tone)
-        tts.speak("Oui ?", TextToSpeech.QUEUE_FLUSH, null, "ready_cue")
-
-        // Give TTS a moment to finish, then start STT
-        serviceScope.launch {
-            delay(600)
-            startSpeechRecognition()
-        }
+        // ── Post-detection pipeline (commented out while testing wake word) ──
+        // isAwake = true
+        // updateNotification(STATE_AWAKE)
+        // broadcast(STATE_AWAKE, "")
+        // wakeWordDetector.stop()
+        // tts.speak("Oui ?", TextToSpeech.QUEUE_FLUSH, null, "ready_cue")
+        // serviceScope.launch {
+        //     delay(600)
+        //     startSpeechRecognition()
+        // }
     }
 
     private fun startSpeechRecognition() {
