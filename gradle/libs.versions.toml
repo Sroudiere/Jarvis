@@ -11,7 +11,7 @@ coroutines = "1.8.1"
 retrofit = "2.11.0"
 okhttp = "4.12.0"
 gson = "2.11.0"
-openwakeword = "0.1.5"
+onnxruntime = "1.18.0"
 playServicesAuth = "21.2.0"
 
 [libraries]
@@ -27,7 +27,7 @@ retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = 
 retrofit-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
-openwakeword = { group = "xyz.rementia", name = "openwakeword", version.ref = "openwakeword" }
+onnxruntime = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxruntime" }
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 
 [plugins]

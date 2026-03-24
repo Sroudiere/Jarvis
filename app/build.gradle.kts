@@ -62,6 +62,6 @@ dependencies {
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp.logging)
     implementation(libs.gson)
-    implementation(libs.openwakeword)
+    implementation(libs.onnxruntime)
     implementation(libs.play.services.auth)
 }
