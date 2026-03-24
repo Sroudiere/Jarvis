@@ -87,13 +87,17 @@ class WakeWordDetector(private val context: Context) {
         melBuf.clear()
         embedBuf.clear()
         listening = true
+        Log.d(TAG, ">>> AudioRecord.startRecording()")
         recorder.startRecording()
+        Log.d(TAG, "<<< AudioRecord.startRecording() recordingState=${recorder.recordingState}")
 
         // If recording didn't actually start (e.g. no mic on emulator, AppOps denied),
         // release without calling stop() — avoids "Operation not started" in AppOps.
         if (recorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
             listening = false
+            Log.w(TAG, ">>> AudioRecord.release() (recording never started)")
             recorder.release()
+            Log.w(TAG, "<<< AudioRecord.release()")
             throw IllegalStateException("AudioRecord failed to start recording (state=${recorder.recordingState}). Check RECORD_AUDIO permission and mic availability.")
         }
 
@@ -139,11 +143,13 @@ class WakeWordDetector(private val context: Context) {
             }
         } finally {
             listening = false
+            Log.d(TAG, ">>> cleanup: recordingState=${recorder.recordingState}")
             if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
                 recorder.stop()
+                Log.d(TAG, "<<< AudioRecord.stop()")
             }
             recorder.release()
-            Log.d(TAG, "Wake word detection stopped")
+            Log.d(TAG, "<<< AudioRecord.release() — wake word detection stopped")
         }
     }
 
