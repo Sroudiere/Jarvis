@@ -1,13 +1,21 @@
 #!/bin/bash
-# Run this script once to download the openWakeWord ONNX model into assets.
-# The base models (melspectrogram.onnx, embedding_model.onnx) are bundled
-# inside the xyz.rementia:openwakeword AAR — you only need the classifier below.
+# Run once to download the three openWakeWord ONNX model files into assets.
+# Required before building:
+#   - melspectrogram.onnx   (audio → mel spectrogram)
+#   - embedding_model.onnx  (mel frames → speech embeddings)
+#   - hey_jarvis_v0.1.onnx  (embeddings → wake word score)
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BASE_URL="https://huggingface.co/davidscripka/openwakeword/resolve/main"
 
-echo "Downloading hey_jarvis_v0.1.onnx..."
-curl -L "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/hey_jarvis_v0.1.onnx" \
-     -o "$SCRIPT_DIR/hey_jarvis_v0.1.onnx"
+for MODEL in melspectrogram.onnx embedding_model.onnx hey_jarvis_v0.1.onnx; do
+    if [ -f "$SCRIPT_DIR/$MODEL" ]; then
+        echo "$MODEL already present, skipping."
+    else
+        echo "Downloading $MODEL..."
+        curl -L "$BASE_URL/$MODEL" -o "$SCRIPT_DIR/$MODEL"
+    fi
+done
 
-echo "Done. Model saved to app/src/main/assets/hey_jarvis_v0.1.onnx"
+echo "All models ready in app/src/main/assets/"
