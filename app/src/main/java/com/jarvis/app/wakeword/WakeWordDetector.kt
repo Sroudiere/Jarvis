@@ -189,7 +189,7 @@ class WakeWordDetector(private val context: Context) {
      */
     private fun runMelModel(pcm: ShortArray): List<FloatArray>? {
         val session = melSession ?: return null
-        val audio = FloatArray(CHUNK_SAMPLES) { pcm[it].toFloat() / 32768.0f }
+        val audio = FloatArray(CHUNK_SAMPLES) { pcm[it].toFloat() }
         val inputName = session.inputInfo.keys.first()
         val tensor = OnnxTensor.createTensor(
             ortEnv, FloatBuffer.wrap(audio), longArrayOf(1L, CHUNK_SAMPLES.toLong()))
