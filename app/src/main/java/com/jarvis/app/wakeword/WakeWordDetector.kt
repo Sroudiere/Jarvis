@@ -3,6 +3,7 @@ package com.jarvis.app.wakeword
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import ai.onnxruntime.TensorInfo
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -29,20 +30,24 @@ import java.nio.FloatBuffer
 class WakeWordDetector(private val context: Context) {
 
     companion object {
-        private const val TAG = "WakeWordDetector"
+        private const val TAG             = "WakeWordDetector"
 
         // Audio
-        private const val SAMPLE_RATE    = 16_000
-        private const val CHUNK_SAMPLES  = 1280        // 80 ms @ 16 kHz
+        private const val SAMPLE_RATE     = 16_000
+        private const val CHUNK_SAMPLES   = 1280          // 80 ms @ 16 kHz
 
-        // openWakeWord pipeline constants (from official documentation)
-        private const val MEL_BINS          = 32       // mel frequency bins per frame
-        private const val FRAMES_PER_CHUNK  = 5        // mel frames produced per 1280-sample chunk
-        private const val MEL_WINDOW        = 76       // frames fed to embedding model
-        private const val MEL_SLIDE         = 8        // frames to advance after each embedding
-        private const val EMBED_DIM         = 96       // embedding dimension
-        private const val EMBED_WINDOW      = 16       // embeddings fed to wake word model
-        private const val THRESHOLD         = 0.5f
+        // 2-second rolling buffer — matches training context window
+        private const val ROLLING_SAMPLES = 32_000
+
+        // openWakeWord pipeline constants
+        private const val MEL_BINS        = 32
+        private const val MEL_WINDOW      = 76
+        private const val MEL_SLIDE       = 8
+        private const val EMBED_DIM       = 96
+        private const val THRESHOLD       = 0.5f
+
+        // Minimum chunks between successive detections (~2 s)
+        private const val COOLDOWN_CHUNKS = 25
     }
 
     private val ortEnv = OrtEnvironment.getEnvironment()
@@ -50,9 +55,13 @@ class WakeWordDetector(private val context: Context) {
     private var embedSession: OrtSession? = null
     private var wakeSession:  OrtSession? = null
 
-    // Sliding buffers
-    private val melBuf   = ArrayDeque<FloatArray>()  // float[MEL_BINS] per entry
-    private val embedBuf = ArrayDeque<FloatArray>()  // float[EMBED_DIM] per entry
+    // Read from the wake model's input shape at init time — never hardcoded
+    private var nEmbedWindows = 0
+
+    // Circular rolling audio buffer (int16-magnitude float32 values, ~[-32768, 32767])
+    private val rollingAudio  = FloatArray(ROLLING_SAMPLES)
+    private var rollingHead   = 0   // next write position
+    private var rollingFilled = 0   // samples written so far, capped at ROLLING_SAMPLES
 
     @Volatile private var listening = false
 
@@ -70,6 +79,16 @@ class WakeWordDetector(private val context: Context) {
         Log.d(TAG, "embedding_model session OK")
         wakeSession  = ortEnv.createSession(loadAsset("hey_jarvis_v0.1.onnx"))
         Log.d(TAG, "hey_jarvis session OK")
+
+        // Determine how many embedding windows the classifier expects
+        val tensorInfo = wakeSession!!.inputInfo.values.first().info as TensorInfo
+        nEmbedWindows = if (tensorInfo.shape[1] > 0) {
+            tensorInfo.shape[1].toInt()
+        } else {
+            // Dynamic input shape: derive from a silent pass through the mel model
+            computeNWindows()
+        }
+        Log.d(TAG, "Wake model shape=${tensorInfo.shape.toList()}, nEmbedWindows=$nEmbedWindows")
         Log.d(TAG, "openWakeWord ONNX engine ready")
     }
 
@@ -91,28 +110,28 @@ class WakeWordDetector(private val context: Context) {
             "AudioRecord failed to initialize (state=${recorder.state})"
         }
 
-        melBuf.clear()
-        embedBuf.clear()
+        rollingHead   = 0
+        rollingFilled = 0
         listening = true
         Log.d(TAG, ">>> AudioRecord.startRecording()")
         recorder.startRecording()
         Log.d(TAG, "<<< AudioRecord.startRecording() recordingState=${recorder.recordingState}")
 
-        // If recording didn't actually start (e.g. no mic on emulator, AppOps denied),
-        // release without calling stop() — avoids "Operation not started" in AppOps.
         if (recorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
             listening = false
             Log.w(TAG, ">>> AudioRecord.release() (recording never started)")
             recorder.release()
             Log.w(TAG, "<<< AudioRecord.release()")
-            throw IllegalStateException("AudioRecord failed to start recording (state=${recorder.recordingState}). Check RECORD_AUDIO permission and mic availability.")
+            throw IllegalStateException(
+                "AudioRecord failed to start recording (state=${recorder.recordingState}). " +
+                "Check RECORD_AUDIO permission and mic availability.")
         }
 
         Log.d(TAG, "Wake word detection started")
         val pcm = ShortArray(CHUNK_SAMPLES)
         var consecutiveErrors = 0
         var chunkCount = 0
-        // Log listening status every ~2 s (2s * 16000Hz / 1280 samples ≈ 25 chunks)
+        var cooldown = 0
         val LOG_INTERVAL = 25
         try {
             while (isActive && listening) {
@@ -134,27 +153,35 @@ class WakeWordDetector(private val context: Context) {
                 }
                 chunkCount++
 
-                // Stage 1: mel spectrogram
-                val newFrames = runMelModel(pcm) ?: continue
-                for (f in newFrames) melBuf.addLast(f)
+                // Honour cooldown between detections
+                if (cooldown > 0) { cooldown--; continue }
 
-                // Stage 2: embedding (run whenever enough mel frames are buffered)
-                while (melBuf.size >= MEL_WINDOW) {
-                    val emb = runEmbedModel() ?: break
-                    embedBuf.addLast(emb)
-                    if (embedBuf.size > EMBED_WINDOW) embedBuf.removeFirst()
-                    repeat(MEL_SLIDE) { if (melBuf.isNotEmpty()) melBuf.removeFirst() }
+                // Push new samples into the circular rolling buffer
+                for (s in pcm) {
+                    rollingAudio[rollingHead] = s.toFloat()
+                    rollingHead = (rollingHead + 1) % ROLLING_SAMPLES
+                    if (rollingFilled < ROLLING_SAMPLES) rollingFilled++
                 }
 
-                // Stage 3: detection
-                if (embedBuf.size == EMBED_WINDOW) {
-                    val score = runWakeModel() ?: continue
-                    if (score >= THRESHOLD) {
-                        Log.d(TAG, "Wake word detected! score=%.3f".format(score))
-                        onDetected()
-                        // Clear embed buffer to enforce a natural cooldown
-                        embedBuf.clear()
-                    }
+                // Stage 1: mel spectrogram on the full rolling buffer
+                val audioSlice = getOrderedRollingAudio()
+                val melFrames = runMelModel(audioSlice) ?: continue
+                if (melFrames.size < MEL_WINDOW) continue
+
+                // Stage 2: all sliding-window embeddings in a single batched call
+                val embeddings = runEmbedModelAll(melFrames) ?: continue
+                if (embeddings.isEmpty()) continue
+
+                // Stage 3: left-pad / trim to nEmbedWindows, then classify
+                val score = runWakeModel(embeddings) ?: continue
+
+                if (chunkCount % LOG_INTERVAL == 0) {
+                    Log.d(TAG, "Score: ${"%.4f".format(score)}")
+                }
+                if (score >= THRESHOLD) {
+                    Log.d(TAG, "Wake word detected! score=${"%.3f".format(score)}")
+                    onDetected()
+                    cooldown = COOLDOWN_CHUNKS
                 }
             }
         } finally {
@@ -180,97 +207,129 @@ class WakeWordDetector(private val context: Context) {
         wakeSession?.close();  wakeSession  = null
     }
 
-    // ─── ONNX inference helpers ───────────────────────────────────────────────
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    private fun computeNWindows(): Int {
+        val mel = runMelModel(FloatArray(ROLLING_SAMPLES)) ?: return 8
+        val n = maxOf((mel.size - MEL_WINDOW) / MEL_SLIDE + 1, 1)
+        Log.d(TAG, "Computed nEmbedWindows=$n from ${mel.size} mel frames (dynamic shape)")
+        return n
+    }
+
+    /** Returns the rolling buffer contents in chronological order. */
+    private fun getOrderedRollingAudio(): FloatArray {
+        if (rollingFilled < ROLLING_SAMPLES) {
+            // Buffer not yet full: data sits at [0, rollingFilled) in order
+            return rollingAudio.copyOf(rollingFilled)
+        }
+        val out = FloatArray(ROLLING_SAMPLES)
+        val tail = ROLLING_SAMPLES - rollingHead
+        System.arraycopy(rollingAudio, rollingHead, out, 0, tail)
+        if (rollingHead > 0) System.arraycopy(rollingAudio, 0, out, tail, rollingHead)
+        return out
+    }
+
+    // ─── ONNX inference ──────────────────────────────────────────────────────
 
     /**
-     * Runs the mel spectrogram model on one 1280-sample chunk.
-     * Input:  [1, 1280] float32 (audio normalised to [-1, 1])
-     * Output: FRAMES_PER_CHUNK frames, each float[MEL_BINS], after (x/10)+2 transform.
+     * Stage 1 — mel spectrogram.
+     * Input:  [1, N] float32 (int16-magnitude values, range ~[-32768, 32767])
+     * Output: array of mel frames, each float[MEL_BINS], after (x / 10) + 2 normalisation.
      */
-    private fun runMelModel(pcm: ShortArray): List<FloatArray>? {
+    private fun runMelModel(audio: FloatArray): Array<FloatArray>? {
         val session = melSession ?: return null
-        val audio = FloatArray(CHUNK_SAMPLES) { pcm[it].toFloat() }
         val inputName = session.inputInfo.keys.first()
         val tensor = OnnxTensor.createTensor(
-            ortEnv, FloatBuffer.wrap(audio), longArrayOf(1L, CHUNK_SAMPLES.toLong()))
+            ortEnv, FloatBuffer.wrap(audio), longArrayOf(1L, audio.size.toLong()))
         return try {
             session.run(mapOf(inputName to tensor)).use { result ->
                 tensor.close()
-                val outName = session.outputInfo.keys.first()
-                val outTensor = result.get(outName).get() as OnnxTensor
+                val outTensor = result.get(session.outputInfo.keys.first()).get() as OnnxTensor
                 val flat = FloatArray(outTensor.floatBuffer.remaining())
                 outTensor.floatBuffer.get(flat)
-                // Apply normalisation: (x / 10) + 2
                 for (i in flat.indices) flat[i] = (flat[i] / 10f) + 2f
-                // Split into individual frames of size MEL_BINS
                 val frameCount = flat.size / MEL_BINS
-                (0 until frameCount).map { fi ->
-                    FloatArray(MEL_BINS) { bi -> flat[fi * MEL_BINS + bi] }
-                }
+                Array(frameCount) { fi -> FloatArray(MEL_BINS) { bi -> flat[fi * MEL_BINS + bi] } }
             }
-        } catch (e: IllegalStateException) {
-            null  // session was closed mid-inference during shutdown
+        } catch (e: Exception) {
+            Log.e(TAG, "runMelModel failed: $e")
+            null
         }
     }
 
     /**
-     * Runs the embedding model on the current mel buffer window.
-     * Input:  [1, MEL_WINDOW, MEL_BINS, 1] float32
-     * Output: float[EMBED_DIM]
+     * Stage 2 — embeddings for all sliding windows, batched in a single inference call.
+     * Input:  [nWins, 76, 32, 1] float32
+     * Output: Array[nWins][96]  (from raw [nWins, 1, 1, 96])
      */
-    private fun runEmbedModel(): FloatArray? {
+    private fun runEmbedModelAll(melFrames: Array<FloatArray>): Array<FloatArray>? {
         val session = embedSession ?: return null
-        val flat = FloatArray(MEL_WINDOW * MEL_BINS)
-        for (fi in 0 until MEL_WINDOW) {
-            val frame = melBuf[fi]
-            for (bi in 0 until MEL_BINS) flat[fi * MEL_BINS + bi] = frame[bi]
+        val starts = (0..melFrames.size - MEL_WINDOW step MEL_SLIDE).toList()
+        val nWins = starts.size
+        if (nWins == 0) return emptyArray()
+
+        val flat = FloatArray(nWins * MEL_WINDOW * MEL_BINS)
+        for (wi in 0 until nWins) {
+            val base = wi * MEL_WINDOW * MEL_BINS
+            for (fi in 0 until MEL_WINDOW) {
+                System.arraycopy(melFrames[starts[wi] + fi], 0, flat, base + fi * MEL_BINS, MEL_BINS)
+            }
         }
+
         val inputName = session.inputInfo.keys.first()
         val tensor = OnnxTensor.createTensor(
             ortEnv, FloatBuffer.wrap(flat),
-            longArrayOf(1L, MEL_WINDOW.toLong(), MEL_BINS.toLong(), 1L))
+            longArrayOf(nWins.toLong(), MEL_WINDOW.toLong(), MEL_BINS.toLong(), 1L))
         return try {
             session.run(mapOf(inputName to tensor)).use { result ->
                 tensor.close()
-                val outName = session.outputInfo.keys.first()
-                val outTensor = result.get(outName).get() as OnnxTensor
+                val outTensor = result.get(session.outputInfo.keys.first()).get() as OnnxTensor
                 val outFlat = FloatArray(outTensor.floatBuffer.remaining())
                 outTensor.floatBuffer.get(outFlat)
-                // Output is [1, 1, 1, EMBED_DIM] — the last EMBED_DIM values are the embedding
-                outFlat.takeLast(EMBED_DIM).toFloatArray()
+                // [nWins, 1, 1, 96] flattened → each block of EMBED_DIM belongs to one window
+                Array(nWins) { wi -> FloatArray(EMBED_DIM) { di -> outFlat[wi * EMBED_DIM + di] } }
             }
-        } catch (e: IllegalStateException) {
-            null  // session was closed mid-inference during shutdown
+        } catch (e: Exception) {
+            Log.e(TAG, "runEmbedModelAll failed: $e")
+            null
         }
     }
 
     /**
-     * Runs the hey-jarvis classifier on the current embedding window.
-     * Input:  [1, EMBED_WINDOW, EMBED_DIM] float32
-     * Output: detection score in [0, 1]
+     * Stage 3 — wake word classifier.
+     * Left-pads with zeros when fewer embeddings are available than nEmbedWindows,
+     * trims the oldest when more are available.
+     * Input:  [1, nEmbedWindows, 96] float32
+     * Output: max score across all output positions, range [0, 1]
      */
-    private fun runWakeModel(): Float? {
+    private fun runWakeModel(embeddings: Array<FloatArray>): Float? {
         val session = wakeSession ?: return null
-        val flat = FloatArray(EMBED_WINDOW * EMBED_DIM)
-        for (ei in 0 until EMBED_WINDOW) {
-            val emb = embedBuf[ei]
-            for (di in 0 until EMBED_DIM) flat[ei * EMBED_DIM + di] = emb[di]
+        val nExp = nEmbedWindows
+
+        // Left-pad with zero vectors if needed; take the last nExp if we have more
+        val padded = Array(nExp) { i ->
+            val src = embeddings.size - nExp + i
+            if (src < 0) FloatArray(EMBED_DIM) else embeddings[src]
         }
+
+        val flat = FloatArray(nExp * EMBED_DIM)
+        for (ei in 0 until nExp) System.arraycopy(padded[ei], 0, flat, ei * EMBED_DIM, EMBED_DIM)
+
         val inputName = session.inputInfo.keys.first()
         val tensor = OnnxTensor.createTensor(
             ortEnv, FloatBuffer.wrap(flat),
-            longArrayOf(1L, EMBED_WINDOW.toLong(), EMBED_DIM.toLong()))
+            longArrayOf(1L, nExp.toLong(), EMBED_DIM.toLong()))
         return try {
             session.run(mapOf(inputName to tensor)).use { result ->
                 tensor.close()
-                val outName = session.outputInfo.keys.first()
-                val outTensor = result.get(outName).get() as OnnxTensor
+                val outTensor = result.get(session.outputInfo.keys.first()).get() as OnnxTensor
                 val outFlat = FloatArray(outTensor.floatBuffer.remaining())
                 outTensor.floatBuffer.get(outFlat)
-                outFlat.firstOrNull()
+                outFlat.maxOrNull()
             }
-        } catch (e: IllegalStateException) {
-            null  // session was closed mid-inference during shutdown
+        } catch (e: Exception) {
+            Log.e(TAG, "runWakeModel failed: $e")
+            null
         }
     }
 }
